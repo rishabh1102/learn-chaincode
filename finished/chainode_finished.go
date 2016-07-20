@@ -40,6 +40,7 @@ type Player struct {
 var tokenList = "tokenList"
 //"<User1ID>:<TokenWillingID>|<TokenWillingColour>-<ColourRequired>,<User2ID>:<TokenWillingID>|<TokenWillingColour>-<ColourRequired>"
 var tradeList = "tradeList"
+//[<SellerID>:<SellerTokenID>|<SellerTokenColour>-<SaleValue>,...]
 var userList = "userList"
 var saleList = "saleList"
 
@@ -303,6 +304,10 @@ func (t *SimpleChaincode) setTradeStatus(stub *shim.ChaincodeStub, args []string
 		return nil, errors.New("Failed to get token details")
 	}
 
+	if tempToken.Trade == true {
+		return nil, errors.New("Token already has existing Trade")
+	}
+
 	//Updating Trade List
 	var putString = args[0] + ":" + args[1] + "|" + tempToken.Colour + "-" + args[2]
 
@@ -334,7 +339,7 @@ func (t *SimpleChaincode) setTradeStatus(stub *shim.ChaincodeStub, args []string
 
 }
 
-//args[0] = UserID, args[1] = TokenID to sell, agds[2] = Value
+//args[0] = UserID, args[1] = TokenID to sell, args[2] = Value
 func (t *SimpleChaincode) setSellStatus(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
 		
 	//Get User Data
@@ -357,6 +362,10 @@ func (t *SimpleChaincode) setSellStatus(stub *shim.ChaincodeStub, args []string)
 		return nil, errors.New("Token entry couldn't be fetched")
 	}
 
+	if tempToken.Sell == true {
+		return nil, errors.New("Token is already on Sale")
+	}
+
 	//Updating Sale List
 	putString := args[0] + ":" + args[1] + "|" + tempToken.Colour + "-" + args[2]
 
@@ -374,7 +383,7 @@ func (t *SimpleChaincode) setSellStatus(stub *shim.ChaincodeStub, args []string)
 
 	getSaleList, err := stub.GetState(saleList)
 	if err != nil {
-		return nil, errors.New("Failed to get Saleß List")
+		return nil, errors.New("Failed to get Sale List")
 	}
 	updatedSaleList := addSubstringtoString(string(getSaleList), putString)
 
@@ -417,8 +426,6 @@ func (t *SimpleChaincode) trade(stub *shim.ChaincodeStub, args []string) ([]byte
 		return nil, errors.New("Problem with token ownership")
 	}
 
-	//Creating new Trade List after omitting current trade
-	var newTradeString = removeSubstringFromString(string(tradeListString), tradeString)
 
 	//Getting Seller Token Data
 	tempSellerToken, err := getTokenFromID(stub, args[4])
@@ -431,6 +438,15 @@ func (t *SimpleChaincode) trade(stub *shim.ChaincodeStub, args []string) ([]byte
 	if err != nil {
 		return nil, err
 	}
+
+	//Creating new Trade List after omitting current trade
+	var newTradeString = removeSubstringFromString(string(tradeListString), tradeString)
+
+	//Clearing out Other Token's entry from the trade list
+	if (tempBuyerToken.TradeString != "") {
+		newTradeString = removeSubstringFromString(newTradeString, tempBuyerToken.TradeString)
+	}
+
 
 	//Removing Entries of traded tokens from Sale List
 	if (tempSellerToken.Sell || tempBuyerToken.Sell) {
